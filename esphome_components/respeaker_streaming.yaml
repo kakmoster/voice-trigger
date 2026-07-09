@@ -1,0 +1,70 @@
+# =============================================================================
+# Respeaker Lite — Constant UDP streaming mode
+# -----------------------------------------------------------------------------
+# Include this file from your main satellite YAML (e.g. add `packages:` entry
+# or paste the contents). It adds a Switch in Home Assistant that toggles
+# between:
+#   - OFF (default): normal Voice Assistant (wake-word) operation
+#   - ON : constant microphone streaming to the voice-trigger server over UDP
+#
+# The voice-trigger server must be running and listening on UDP port 5000.
+# Adjust `target_host` below to the server's IP on your LAN.
+# =============================================================================
+
+# Load the custom UDP microphone streaming component from this repo.
+external_components:
+  - source:
+      type: git
+      url: https://github.com/kakmoster/voice-trigger
+      ref: main
+      directory: esphome_components
+    components:
+      - udp_mic_stream
+    refresh: 1s
+
+# UDP transport used to send raw audio packets.
+udp:
+  id: udp_stream_hub
+
+# The streaming component: binds the microphone to the UDP hub and resamples
+# 48 kHz stereo / 32-bit down to 16 kHz mono / 16-bit for the server.
+udp_mic_stream:
+  id: mic_stream
+  microphone: i2s_mics
+  udp_id: udp_stream_hub
+  target_host: "192.168.1.2"   # <-- CHANGE to your voice-trigger server IP
+  target_port: 5000
+  sample_rate: 16000
+  channels: 1
+  bits_per_sample: 16
+  packet_size: 1600            # ~100 ms per packet @ 16 kHz / 16-bit
+
+# Switch to toggle between Voice Assistant and constant streaming.
+switch:
+  - platform: template
+    name: "Streaming mode"
+    id: streaming_mode
+    icon: "mdi:broadcast"
+    optimistic: true
+    restore_mode: ALWAYS_OFF
+    entity_category: config
+    on_turn_on:
+      # Stop the normal Voice Assistant pipeline, then start UDP streaming.
+      - if:
+          condition:
+            voice_assistant.is_running:
+          then:
+            - voice_assistant.stop:
+      - delay: 200ms
+      - udp_mic_stream.start: mic_stream
+      - logger.log: "Switched to constant UDP streaming"
+    on_turn_off:
+      # Stop UDP streaming and return to normal Voice Assistant idle.
+      - udp_mic_stream.stop: mic_stream
+      - delay: 200ms
+      - if:
+          condition:
+            api.connected:
+          then:
+            - voice_assistant.start:
+      - logger.log: "Returned to Voice Assistant mode"
