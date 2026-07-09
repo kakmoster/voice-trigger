@@ -1,0 +1,41 @@
+# Docker Compose package: Always-Listening HA Voice Trigger
+#
+# Packages the full voice-trigger system (STT + UDP capture + loop + settings
+# web UI) in one deployable stack. Home Assistant and Ollama run SEPARATELY
+# (already on your network) — this stack only talks to them over the LAN.
+#
+# Services:
+#   app    - Python: Vosk STT, ESPHome UDP capture, trigger -> HA Assist
+#   webui  - PHP/Apache: configure HA URL/token + Ollama URL/token (no code edits)
+#
+# Usage:
+#   cp .env.example .env      # edit with your LAN IPs
+#   docker compose up -d
+#   open http://<this-host>:8080/   (web UI)
+
+services:
+  app:
+    build: ./app
+    container_name: voice-trigger-app
+    restart: unless-stopped
+    env_file:
+      - ../secrets/.env      # written by the web UI (HA_URL, HA_TOKEN, OLLAMA_*)
+    environment:
+      - UDP_LISTEN_PORT=5000
+      - VOSK_MODELS_DIR=/app/models
+    ports:
+      - "5000:5000/udp"       # ESP32 audio stream
+    volumes:
+      - ./../models:/app/models          # Vosk model persists across restarts
+      - ./../secrets:/app/secrets:ro     # read settings written by web UI
+    command: ["python", "loop.py", "--udp"]
+
+  webui:
+    build: ./webui
+    container_name: voice-trigger-webui
+    restart: unless-stopped
+    ports:
+      - "8080:80"             # settings UI at http://<host>:8080/
+    volumes:
+      - ./../secrets:/var/www/html/secrets   # web UI writes .env here
+      - /var/run/docker.sock:/var/run/docker.sock  # control the stack from the UI

@@ -1,0 +1,14 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Vosk model (downloaded at runtime, ~770 MB)
+models/
+
+# Secrets written by the web UI — NEVER commit
+secrets/
+.env
+
+# OS / editor
+.DS_Store

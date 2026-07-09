@@ -1,0 +1,7 @@
+# Ignore local dev artifacts when building the app image.
+.venv/
+models/
+__pycache__/
+*.pyc
+secrets/
+.git/
