@@ -22,8 +22,22 @@ from forwarder import AssistForwarder
 from config import CONTEXT_WINDOW
 
 
-def process_segment(text, forwarder, buffer, verbose=True):
+def process_segment(
+    text,
+    forwarder,
+    buffer,
+    verbose=True,
+    interpret_fn=None,
+    llm_available=None,
+):
     """Check one transcript segment for a trigger and act on it.
+
+    On a trigger, the surrounding context (rolling buffer) is sent to the
+    LLM, which returns a clean command phrase. That phrase is forwarded to
+    HA Assist. If no LLM is configured/available, the raw text is forwarded.
+
+    `interpret_fn` / `llm_available` default to the real Ollama client but
+    can be injected (e.g. for tests).
 
     Returns True if a trigger was detected (regardless of outcome).
     """
@@ -37,11 +51,17 @@ def process_segment(text, forwarder, buffer, verbose=True):
     # Surrounding speech = everything currently in the rolling buffer.
     context = "\n".join(list(buffer))
 
+    # Resolve the LLM callables (default: real Ollama client).
+    if interpret_fn is None or llm_available is None:
+        from llm import interpret, is_available as _avail
+        interpret_fn = interpret_fn or interpret
+        llm_available = llm_available if llm_available is not None else _avail
+
     # Interpret with the LLM; fall back to raw text if Ollama is unavailable.
+    command = text
     try:
-        from llm import interpret, is_available
-        if is_available():
-            command = interpret(context)
+        if llm_available():
+            command = interpret_fn(context)
             if command == "NO_COMMAND":
                 if verbose:
                     print("[llm] NO_COMMAND — ignoring")
@@ -51,11 +71,9 @@ def process_segment(text, forwarder, buffer, verbose=True):
         else:
             if verbose:
                 print("[llm] not configured — forwarding raw text")
-            command = text
     except Exception as e:  # Ollama down / bad response
         if verbose:
             print(f"[llm] error ({e}) — forwarding raw text")
-        command = text
 
     try:
         reply = forwarder.speech_response(command)
