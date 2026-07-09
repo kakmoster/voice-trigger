@@ -81,7 +81,7 @@ class AudioStreamer:
     def _resample(self, samples: list[int]) -> bytes:
         """Resample a list of 16-bit mono samples to TARGET_RATE."""
         out: list[int] = []
-        ratio = self.input_rate / TARGET_RATE
+        ratio = TARGET_RATE / self.input_rate  # outputs per input sample
         for s in samples:
             self._resample_pos += ratio
             if self._resample_pos >= 1.0:
