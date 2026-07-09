@@ -1,43 +1,54 @@
 # =============================================================================
-# Respeaker Lite — Constant UDP streaming mode
+# Respeaker Lite — Constant UDP streaming mode (NO custom component)
 # -----------------------------------------------------------------------------
-# Include this file from your main satellite YAML (e.g. add `packages:` entry
-# or paste the contents). It adds a Switch in Home Assistant that toggles
-# between:
+# Uses only stock ESPHome components: `udp` + the existing `i2s_mics`
+# microphone's `on_data` trigger. A Switch in Home Assistant toggles between:
 #   - OFF (default): normal Voice Assistant (wake-word) operation
 #   - ON : constant microphone streaming to the voice-trigger server over UDP
 #
-# The voice-trigger server must be running and listening on UDP port 5000.
-# Adjust `target_host` below to the server's IP on your LAN.
+# SETUP (2 steps):
+#   1. In your base satellite YAML, add `on_data:` to the existing
+#      `microphone:` block that defines `i2s_mics` (see "MIC PATCH" below).
+#   2. Include this file (or paste it) into your satellite config.
+#
+# The voice-trigger server resamples 48 kHz -> 16 kHz on its side, so this
+# file only forwards 16-bit mono frames over UDP.
 # =============================================================================
 
-# Load the custom UDP microphone streaming component from this repo.
-external_components:
-  - source:
-      type: git
-      url: https://github.com/kakmoster/voice-trigger
-      ref: main
-      directory: esphome_components
-    components:
-      - udp_mic_stream
-    refresh: 1s
+# --- MIC PATCH -------------------------------------------------------------
+# Add this `on_data` block INSIDE your existing `microphone:` -> `i2s_mics`
+# definition in the base config (respeaker-satellite-base.yaml or your
+# local override). It downmixes stereo->mono and sends over UDP whenever
+# streaming mode is active.
+#
+#   microphone:
+#     - platform: i2s_audio
+#       id: i2s_mics
+#       # ... existing settings ...
+#       on_data:
+#         then:
+#           - if:
+#               condition:
+#                 switch.is_on: streaming_mode
+#               then:
+#                 - udp.write:
+#                     id: udp_stream_hub
+#                     data: !lambda |-
+#                       std::vector<uint8_t> out;
+#                       const int16_t *s = reinterpret_cast<const int16_t*>(x.data());
+#                       size_t n = x.size() / sizeof(int16_t);
+#                       for (size_t i = 0; i < n; i += 2) {
+#                         int32_t mono = (int32_t)s[i] + (int32_t)s[i+1];
+#                         int16_t m = (int16_t)(mono / 2);
+#                         out.push_back((uint8_t)(m & 0xFF));
+#                         out.push_back((uint8_t)((m >> 8) & 0xFF));
+#                       }
+#                       return out;
+# ---------------------------------------------------------------------------
 
 # UDP transport used to send raw audio packets.
 udp:
   id: udp_stream_hub
-
-# The streaming component: binds the microphone to the UDP hub and resamples
-# 48 kHz stereo / 32-bit down to 16 kHz mono / 16-bit for the server.
-udp_mic_stream:
-  id: mic_stream
-  microphone: i2s_mics
-  udp_id: udp_stream_hub
-  target_host: "192.168.1.2"   # <-- CHANGE to your voice-trigger server IP
-  target_port: 5000
-  sample_rate: 16000
-  channels: 1
-  bits_per_sample: 16
-  packet_size: 1600            # ~100 ms per packet @ 16 kHz / 16-bit
 
 # Switch to toggle between Voice Assistant and constant streaming.
 switch:
@@ -49,18 +60,17 @@ switch:
     restore_mode: ALWAYS_OFF
     entity_category: config
     on_turn_on:
-      # Stop the normal Voice Assistant pipeline, then start UDP streaming.
       - if:
           condition:
             voice_assistant.is_running:
           then:
             - voice_assistant.stop:
       - delay: 200ms
-      - udp_mic_stream.start: mic_stream
+      # Start capturing mic frames so on_data fires.
+      - microphone.capture: i2s_mics
       - logger.log: "Switched to constant UDP streaming"
     on_turn_off:
-      # Stop UDP streaming and return to normal Voice Assistant idle.
-      - udp_mic_stream.stop: mic_stream
+      - microphone.stop_capture: i2s_mics
       - delay: 200ms
       - if:
           condition:
