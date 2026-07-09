@@ -24,15 +24,17 @@ Then open the settings UI at `http://<host>:8080/` and:
 6. Click **Restart / Reload App** to apply the new settings
 
 The web UI also has **View Debug Log** to see the app's output (model
-download, STT errors, HA timeouts). Flash `esp32_udp_stream.ino` to an
-ESP32-S3 with an INMP441 mic to stream audio to UDP port 5000.
+download, STT errors, HA timeouts). To feed it audio, either run the
+**PC client** (`pc_client.py`) on a computer with a microphone, or set up
+the **ESPHome Respeaker Lite** streaming mode (see
+[`esphome_components/README.md`](esphome_components/README.md)).
 
 See [`deploy/README.md`](deploy/README.md) for the full reference.
 
 ## How it works (end to end)
 
 ```
-ESP32 mic (INMP441, I2S)
+Microphone (ESPHome Respeaker Lite or PC client)
       |  raw 16 kHz mono PCM over UDP :5000
       v
 capture.py  — receives UDP audio, emits fixed-size PCM chunks
@@ -69,7 +71,7 @@ natural speech into something Assist can resolve.
 | File | Role |
 |------|------|
 | `config.py` | Env-var config (HA_URL, HA_TOKEN, OLLAMA_URL/TOKEN/MODEL — all unset) |
-| `capture.py` | UDP audio listener from the ESPHome/ESP32 device |
+| `capture.py` | UDP audio listener from the microphone source (ESPHome Respeaker or PC client) |
 | `stt.py` | Vosk streaming STT engine (CPU-only, small SV model) |
 | `triggers.py` | Trigger phrase list + `find_trigger()` (sv + en, accent-safe) |
 | `llm.py` | Ollama client: interpret surrounding speech into an Assist phrase |
@@ -78,7 +80,6 @@ natural speech into something Assist can resolve.
 | `loop.py` | Orchestrator: capture -> STT -> trigger -> LLM -> forward |
 | `Dockerfile` | Container image (no local mic needed) |
 | `pc_client.py` | PC desktop client: streams a PC microphone to the server over UDP (GUI) |
-| `esp32_udp_stream.ino` | Reference firmware: ESP32 streams mic over UDP (legacy; prefer the ESPHome Respeaker setup) |
 
 See also:
 
@@ -97,7 +98,7 @@ All secrets/config come from env vars. **Nothing is hardcoded.**
 | `OLLAMA_TOKEN` | _(unset)_ | Optional, if Ollama requires auth |
 | `OLLAMA_MODEL` | `llama3.2:3b` | Ollama model used for interpretation |
 | `UDP_LISTEN_HOST` | `0.0.0.0` | UDP bind interface |
-| `UDP_LISTEN_PORT` | `5000` | UDP port for ESP32 audio |
+| `UDP_LISTEN_PORT` | `5000` | UDP port for microphone audio |
 | `CHUNK_SAMPLES` | `1600` | Samples per emitted chunk (0.1 s @16 kHz) |
 | `VOSK_MODEL_NAME` | first match | Override Vosk model (e.g. `vosk-model-small-en-us-0.15`) |
 | `VOSK_MODELS_DIR` | `models` | Where models are stored |
@@ -116,7 +117,7 @@ Each line of `transcript.txt` is treated as one transcript segment; any
 line containing a trigger phrase is forwarded (or reported as
 "not configured" until HA creds are set).
 
-### 2. Live mode (ESP32 streaming over UDP)
+### 2. Live mode (audio streaming over UDP)
 
 ```bash
 export HA_URL=http://192.168.1.2:8123
@@ -126,9 +127,9 @@ cd "workspace/Home Assistant/voice-trigger"
 .venv/bin/python loop.py --udp
 ```
 
-Flash `esp32_udp_stream.ino` to an ESP32-S3 with an INMP441 mic, set
-`WIFI_SSID`, `WIFI_PASSWORD` and `SERVER_IP` in the sketch, and it will
-stream audio to port 5000.
+Point a microphone source at UDP port 5000:
+- **ESPHome Respeaker Lite** — see [`esphome_components/README.md`](esphome_components/README.md)
+- **PC client** — run `pc_client.py` and select your microphone
 
 ### 3. Docker
 
@@ -146,21 +147,6 @@ The Vosk model downloads automatically on first start (one-time, needs
 network). To bake it into the image, uncomment the `RUN ... download_model()`
 line in the Dockerfile.
 
-## ESP32 firmware (reference)
-
-`esp32_udp_stream.ino` reads an I2S MEMS mic (INMP441) at 16 kHz / 16-bit
-mono and sends raw PCM to the server over UDP. Pin mapping:
-
-```
-INMP441   ESP32-S3
-WS        GPIO 15
-SCK       GPIO 14
-SD        GPIO 13
-L/R       GND   (selects left channel)
-```
-
-Set `WIFI_SSID`, `WIFI_PASSWORD`, `SERVER_IP` before flashing.
-
 ## Trigger phrases
 
 Defined in `triggers.py`. Both Swedish and English are supported, with
@@ -174,10 +160,9 @@ accent normalization so "tänd" matches "tända". Longest match wins
 - [x] Forwarder to HA Assist (REST)
 - [x] Replay validation (trigger flow verified)
 - [x] STT module (Vosk small SV model, loads from disk)
-- [x] UDP capture layer (`capture.py`) for ESPHome/ESP32 audio
+- [x] UDP capture layer (`capture.py`) for ESPHome Respeaker / PC client audio
 - [x] Dockerfile (no local mic required)
-- [x] ESP32 reference firmware (UDP stream)
-- [ ] Live end-to-end test (requires HA_URL + HA_TOKEN + ESP32)
+- [ ] Live end-to-end test (requires HA_URL + HA_TOKEN + audio source)
 
 ## Notes
 

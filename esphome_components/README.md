@@ -65,7 +65,6 @@ Or paste the contents of `respeaker_streaming.yaml` directly (it defines
 
 ### 3. Point at your server
 
-Edit `target_host` — wait, there is no `target_host` in this version.
 The `udp.write` in step 1 sends to the broadcast/default address. To target
 a specific server IP, set `addresses:` under `udp:` in
 `respeaker_streaming.yaml`:
@@ -74,7 +73,7 @@ a specific server IP, set `addresses:` under `udp:` in
 udp:
   id: udp_stream_hub
   addresses:
-    - "192.168.1.2"   # <-- your voice-trigger server IP
+    - "192.168.1.2"   # your voice-trigger server IP
 ```
 
 ### 4. Flash & use

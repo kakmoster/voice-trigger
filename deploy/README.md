@@ -8,7 +8,7 @@ only connects to them (you configure their URLs/tokens in the web UI).
 
 | Service | Image | Port | Role |
 |---------|-------|------|------|
-| `app` | Python (Vosk STT + UDP capture + loop) | `5000/udp` | Listens to ESP32 audio, transcribes, triggers HA Assist |
+| `app` | Python (Vosk STT + UDP capture + loop) | `5000/udp` | Listens to microphone audio, transcribes, triggers HA Assist |
 | `webui` | PHP/Apache (settings UI) | `8080` | Configure HA URL/token + Ollama URL/token |
 
 The web UI writes settings to a shared `secrets/.env` volume that the `app`
@@ -41,11 +41,14 @@ The web UI (port 8080) also provides:
 Both buttons call `docker compose` from inside the web UI container (the
 host Docker socket is mounted read-only-ish into it).
 
-## Hardware
+## Hardware (audio source)
 
-Flash `esp32_udp_stream.ino` (in the project root) to an ESP32-S3 with an
-INMP441 I2S mic. Point `SERVER_IP` at this host and it streams 16 kHz PCM
-to UDP port 5000.
+The `app` service listens on UDP port 5000 for raw 16 kHz mono PCM. Feed it
+audio from any of:
+
+- **ESPHome Respeaker Lite** — see [`../esphome_components/README.md`](../esphome_components/README.md)
+  (sets a switch in HA to stream the mic constantly)
+- **PC client** — run `pc_client.py` on a computer with a microphone
 
 ## Notes
 

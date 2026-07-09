@@ -1,12 +1,13 @@
-"""Audio capture layer: receive raw PCM audio over UDP from an ESPHome device.
+"""Audio capture layer: receive raw PCM audio over UDP from a microphone source.
 
-The ESP32 (running a simple firmware) streams raw 16-bit mono PCM audio at
-16 kHz over UDP. This module listens on a UDP port and yields fixed-size
-chunks of raw audio bytes, ready to feed into the Vosk STT engine.
+A microphone device (ESPHome Respeaker Lite or the PC client) streams raw
+16-bit mono PCM audio at 16 kHz over UDP. This module listens on a UDP port
+and yields fixed-size chunks of raw audio bytes, ready to feed into the
+Vosk STT engine.
 
 No PortAudio / sound device is required — audio arrives over the network,
 which makes this ideal for an always-listening setup where the microphone
-lives on a separate ESPHome device.
+lives on a separate device or PC.
 
 Configuration (env vars / constructor args, no secrets):
     UDP_LISTEN_HOST   Interface to bind (default: 0.0.0.0)

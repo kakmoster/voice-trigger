@@ -2,7 +2,7 @@
 
 A simple desktop app that streams your computer's microphone to the
 voice-trigger server over UDP. Useful for testing the full pipeline without
-any ESP32/Respeaker hardware, or as a permanent always-listening client on
+any Respeaker hardware, or as a permanent always-listening client on
 a PC near where you talk.
 
 ## Features

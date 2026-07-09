@@ -1,5 +1,5 @@
-# Python app image: Vosk STT + ESPHome UDP capture + trigger loop.
-# No local mic needed — audio arrives over UDP from the ESP32.
+# Python app image: Vosk STT + UDP capture + trigger loop.
+# No local mic needed — audio arrives over UDP from a microphone source.
 FROM python:3.13-slim
 
 WORKDIR /app

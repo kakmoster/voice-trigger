@@ -24,7 +24,7 @@ services:
       - UDP_LISTEN_PORT=5000
       - VOSK_MODELS_DIR=/app/models
     ports:
-      - "5000:5000/udp"       # ESP32 audio stream
+      - "5000:5000/udp"       # microphone audio stream (UDP)
     volumes:
       - ./../models:/app/models          # Vosk model persists across restarts
       - ./../secrets:/app/secrets:ro     # read settings written by web UI
