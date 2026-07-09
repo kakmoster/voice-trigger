@@ -77,7 +77,13 @@ natural speech into something Assist can resolve.
 | `forwarder.py` | Sends the LLM's phrase to HA Assist via REST |
 | `loop.py` | Orchestrator: capture -> STT -> trigger -> LLM -> forward |
 | `Dockerfile` | Container image (no local mic needed) |
-| `esp32_udp_stream.ino` | Reference firmware: ESP32 streams mic over UDP |
+| `pc_client.py` | PC desktop client: streams a PC microphone to the server over UDP (GUI) |
+| `esp32_udp_stream.ino` | Reference firmware: ESP32 streams mic over UDP (legacy; prefer the ESPHome Respeaker setup) |
+
+See also:
+
+- **ESPHome / Respeaker Lite** streaming setup → [`esphome_components/README.md`](esphome_components/README.md)
+- **PC client** (desktop microphone) → [`pc_client.md`](pc_client.md)
 
 ## Configuration (environment variables)
 
