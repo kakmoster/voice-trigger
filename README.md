@@ -106,46 +106,17 @@ All secrets/config come from env vars. **Nothing is hardcoded.**
 
 ## Run it
 
-### 1. Replay mode (no hardware, validates the trigger -> forward flow)
-
-```bash
-cd "workspace/Home Assistant/voice-trigger"
-.venv/bin/python loop.py --replay transcript.txt
-```
-
-Each line of `transcript.txt` is treated as one transcript segment; any
-line containing a trigger phrase is forwarded (or reported as
-"not configured" until HA creds are set).
-
-### 2. Live mode (audio streaming over UDP)
-
-```bash
-export HA_URL=http://192.168.1.2:8123
-export HA_TOKEN=<long-lived-access-token>
-
-cd "workspace/Home Assistant/voice-trigger"
-.venv/bin/python loop.py --udp
-```
+Run the stack with Docker Compose — see **Quick start with Docker** above,
+or [`deploy/README.md`](deploy/README.md) for the full reference. The compose
+package starts the app (`app`, listening on UDP 5000) and the settings web UI
+(`webui`, port 8080).
 
 Point a microphone source at UDP port 5000:
 - **ESPHome Respeaker Lite** — see [`esphome_components/README.md`](esphome_components/README.md)
 - **PC client** — run `pc_client.py` and select your microphone
 
-### 3. Docker
-
-```bash
-cd "workspace/Home Assistant/voice-trigger"
-docker build -t voice-trigger .
-docker run -d --restart unless-stopped \
-  -p 5000:5000/udp \
-  -e HA_URL=http://192.168.1.2:8123 \
-  -e HA_TOKEN=<long-lived-access-token> \
-  voice-trigger
-```
-
 The Vosk model downloads automatically on first start (one-time, needs
-network). To bake it into the image, uncomment the `RUN ... download_model()`
-line in the Dockerfile.
+network).
 
 ## Trigger phrases
 
