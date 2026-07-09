@@ -87,7 +87,9 @@ All secrets/config come from env vars. **Nothing is hardcoded.**
 |----------|---------|---------|
 | `HA_URL` | _(unset)_ | Home Assistant base URL, e.g. `http://192.168.1.2:8123` |
 | `HA_TOKEN` | _(unset)_ | Long-lived access token (HA profile -> Long-lived tokens) |
-| `OLLAMA_URL` | _(unset)_ | Reserved for future use; not in the realtime path |
+| `OLLAMA_URL` | _(unset)_ | Local LLM endpoint; runs AFTER a trigger to interpret speech into an Assist phrase |
+| `OLLAMA_TOKEN` | _(unset)_ | Optional, if Ollama requires auth |
+| `OLLAMA_MODEL` | `llama3.2:3b` | Ollama model used for interpretation |
 | `UDP_LISTEN_HOST` | `0.0.0.0` | UDP bind interface |
 | `UDP_LISTEN_PORT` | `5000` | UDP port for ESP32 audio |
 | `CHUNK_SAMPLES` | `1600` | Samples per emitted chunk (0.1 s @16 kHz) |
@@ -175,5 +177,7 @@ accent normalization so "tänd" matches "tända". Longest match wins
 
 - No secrets in code. All config via env vars.
 - Public-facing docs/comments are in English.
-- LLM (OLLAMA_URL) is reserved for future use, not in the realtime path.
+- LLM (Ollama) runs AFTER a trigger to rephrase the spoken context into a
+  phrase HA Assist understands. It is gated by the cheap keyword trigger, so
+  it never processes raw audio.
 - Local-first: no cloud STT/LLM in the realtime path.
