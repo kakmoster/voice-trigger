@@ -59,9 +59,11 @@ for _p in _discover_env_paths():
 HA_URL = os.getenv("HA_URL", "")          # e.g. http://192.168.1.2:8123
 HA_TOKEN = os.getenv("HA_TOKEN", "")      # long-lived access token
 
-# Optional local LLM (NOT used in the realtime path; reserved for future use)
-OLLAMA_URL = os.getenv("OLLAMA_URL", "")      # e.g. http://192.168.1.2:11434
-OLLAMA_TOKEN = os.getenv("OLLAMA_TOKEN", "")  # optional, if Ollama has auth
+# Local LLM (Ollama) — used AFTER a trigger to interpret the spoken context
+# into a clean command phrase that HA Assist understands. Not run on raw audio.
+OLLAMA_URL = os.getenv("OLLAMA_URL", "")        # e.g. http://192.168.1.2:11434
+OLLAMA_TOKEN = os.getenv("OLLAMA_TOKEN", "")    # optional, if Ollama has auth
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 
 # Audio capture settings (used by the capture layer, built later)
 SAMPLE_RATE = int(os.getenv("SAMPLE_RATE", "16000"))
@@ -69,6 +71,8 @@ CHANNELS = int(os.getenv("CHANNELS", "1"))
 
 # Trigger settings
 TRIGGER_LANGUAGES = os.getenv("TRIGGER_LANGUAGES", "sv,en").split(",")
+# How many recent transcript segments to keep as context for the LLM.
+CONTEXT_WINDOW = int(os.getenv("CONTEXT_WINDOW", "10"))
 
 
 def is_configured() -> bool:

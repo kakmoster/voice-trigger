@@ -41,35 +41,41 @@ capture.py  — receives UDP audio, emits fixed-size PCM chunks
 stt.py (Vosk)  — transcribes chunks to text (Swedish small model)
       |
       v
-loop.py  — feeds transcript into the trigger checker
+loop.py  — feeds transcript into a rolling context buffer + trigger checker
       |
+      |  trigger phrase found ("tänd", "släck", "turn on" ...)?
       v
-triggers.py  — cheap keyword match ("tänd", "släck", "turn on" ...)
-      |  trigger found?
+llm.py (Ollama)  — sends the SURROUNDING speech context to a local LLM,
+      |                which rephrases it into a clean command phrase that
+      |                Home Assistant Assist understands. (LLM runs ONLY here,
+      |                never on raw audio — cheap trigger gates it.)
       v
-forwarder.py  — POSTs the cleaned phrase to HA Assist
+forwarder.py  — POSTs the LLM's phrase to HA Assist
       |
       v
 Home Assistant  — Assist interprets the phrase and runs the action
                    (lights, fan, cover, climate ... it already knows entities)
 ```
 
-**Why no LLM in the hot path?** A local LLM fast enough to interpret free
-text in real time needs a GPU. By forwarding the raw phrase to HA Assist,
-all the "understanding" (entity names, rooms, aliases, context) stays in
-Home Assistant, which already does it well. The trigger layer is just a
-tiny, fast string match — so the whole realtime path runs on CPU.
+**Why the LLM sits after the trigger, not before it:** a local LLM fast
+enough to interpret free text in real time needs a GPU. By gating it behind
+a cheap keyword trigger, the LLM only runs when the user likely said a
+command, and only on a small transcript window — so the whole realtime path
+stays on CPU. The LLM does not need to know entity names; it just rephrases
+natural speech into something Assist can resolve.
 
 ## Components
 
 | File | Role |
 |------|------|
-| `config.py` | Env-var config (HA_URL, HA_TOKEN, OLLAMA_URL — all unset) |
+| `config.py` | Env-var config (HA_URL, HA_TOKEN, OLLAMA_URL/TOKEN/MODEL — all unset) |
 | `capture.py` | UDP audio listener from the ESPHome/ESP32 device |
 | `stt.py` | Vosk streaming STT engine (CPU-only, small SV model) |
 | `triggers.py` | Trigger phrase list + `find_trigger()` (sv + en, accent-safe) |
-| `forwarder.py` | Sends a phrase to HA Assist via REST |
-| `loop.py` | Orchestrator: capture -> STT -> trigger -> forward |
+| `llm.py` | Ollama client: interpret surrounding speech into an Assist phrase |
+| `prompts.py` | Editable system prompt for the LLM interpreter |
+| `forwarder.py` | Sends the LLM's phrase to HA Assist via REST |
+| `loop.py` | Orchestrator: capture -> STT -> trigger -> LLM -> forward |
 | `Dockerfile` | Container image (no local mic needed) |
 | `esp32_udp_stream.ino` | Reference firmware: ESP32 streams mic over UDP |
 

@@ -1,29 +1,31 @@
-"""Main loop: STT -> trigger-check -> forward to HA Assist.
+"""Main loop: STT -> trigger -> LLM interpret -> forward to HA Assist.
 
-This module wires the pieces together. It is intentionally thin:
-- Audio capture (UDP from ESPHome) produces raw PCM
-- STT transcribes it to text
-- triggers.find_trigger() does the cheap keyword match
-- forwarder.AssistForwarder sends the cleaned phrase to HA Assist
+Pipeline:
+  UDP audio (ESPHome) -> Vosk STT -> transcript segments
+  On a trigger phrase: gather surrounding context -> Ollama interprets it
+  into a clean command phrase -> forward that phrase to HA Assist.
+
+The LLM runs ONLY when a trigger is detected (cheap keyword match), never on
+raw audio. The LLM does not need to know entity names — Assist handles that.
 
 Run modes:
-  python loop.py --replay transcript.txt   # validate trigger->forward without audio
+  python loop.py --replay transcript.txt   # validate flow without audio
   python loop.py --udp                      # live: UDP audio from ESPHome device
-
-No LLM is used in this path.
 """
 
 import argparse
 import sys
+from collections import deque
 
 from triggers import find_trigger
 from forwarder import AssistForwarder
+from config import CONTEXT_WINDOW
 
 
-def process_segment(text: str, forwarder: AssistForwarder, verbose: bool = True):
-    """Check one transcript segment for a trigger and forward if found.
+def process_segment(text, forwarder, buffer, verbose=True):
+    """Check one transcript segment for a trigger and act on it.
 
-    Returns True if a command was forwarded.
+    Returns True if a trigger was detected (regardless of outcome).
     """
     hit = find_trigger(text)
     if not hit:
@@ -31,9 +33,32 @@ def process_segment(text: str, forwarder: AssistForwarder, verbose: bool = True)
     phrase, intent = hit
     if verbose:
         print(f"[trigger] '{phrase}' -> intent={intent}")
-    # Forward the whole segment; Assist interprets the exact command.
+
+    # Surrounding speech = everything currently in the rolling buffer.
+    context = "\n".join(list(buffer))
+
+    # Interpret with the LLM; fall back to raw text if Ollama is unavailable.
     try:
-        reply = forwarder.speech_response(text)
+        from llm import interpret, is_available
+        if is_available():
+            command = interpret(context)
+            if command == "NO_COMMAND":
+                if verbose:
+                    print("[llm] NO_COMMAND — ignoring")
+                return True
+            if verbose:
+                print(f"[llm] -> {command}")
+        else:
+            if verbose:
+                print("[llm] not configured — forwarding raw text")
+            command = text
+    except Exception as e:  # Ollama down / bad response
+        if verbose:
+            print(f"[llm] error ({e}) — forwarding raw text")
+        command = text
+
+    try:
+        reply = forwarder.speech_response(command)
         if verbose:
             print(f"[assist] -> {reply}")
     except RuntimeError as e:
@@ -43,18 +68,21 @@ def process_segment(text: str, forwarder: AssistForwarder, verbose: bool = True)
     return True
 
 
-def run_replay(path: str, forwarder: AssistForwarder):
+def run_replay(path, forwarder):
     """Replay a transcript file line-by-line to validate the flow."""
     print(f"[loop] replay mode: {path}")
+    buffer = deque(maxlen=CONTEXT_WINDOW)
     with open(path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line:
-                process_segment(line, forwarder)
+            if not line:
+                continue
+            buffer.append(line)
+            process_segment(line, forwarder, buffer)
 
 
-def run_udp(forwarder: AssistForwarder):
-    """Live mode: UDP audio from ESPHome -> STT -> trigger -> forward."""
+def run_udp(forwarder):
+    """Live mode: UDP audio from ESPHome -> STT -> trigger -> LLM -> Assist."""
     from stt import VoskSTT
     from capture import UDPAudioSource
 
@@ -62,12 +90,13 @@ def run_udp(forwarder: AssistForwarder):
     engine.load()  # download/load model up front; fail fast if unavailable
     source = UDPAudioSource()
 
+    buffer = deque(maxlen=CONTEXT_WINDOW)
     print("[loop] UDP live mode started")
-    # Wrap the UDP byte stream into the STT streaming transcriber.
-    audio_chunks = source.stream()
-    for text in engine.transcribe_stream(audio_chunks):
-        if text:
-            process_segment(text, forwarder)
+    for text in engine.transcribe_stream(source.stream()):
+        if not text:
+            continue
+        buffer.append(text)
+        process_segment(text, forwarder, buffer)
 
 
 def main():
