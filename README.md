@@ -6,6 +6,29 @@
 > should **not** be used by anyone for anything real. No stability,
 > security, or correctness is guaranteed.
 
+## Quick start with Docker
+
+```bash
+git clone https://github.com/kakmoster/voice-trigger.git
+cd voice-trigger/deploy
+docker compose up -d --build
+```
+
+Then open the settings UI at `http://<host>:8080/` and:
+
+1. Enter **Home Assistant URL** (e.g. `http://192.168.1.2:8123`)
+2. Enter a **long-lived access token** (HA → Profile → Long-lived tokens)
+3. (Optional) Ollama URL + token
+4. Click **Test HA connection** → should say `OK - HA reachable`
+5. Click **Save**
+6. Click **Restart / Reload App** to apply the new settings
+
+The web UI also has **View Debug Log** to see the app's output (model
+download, STT errors, HA timeouts). Flash `esp32_udp_stream.ino` to an
+ESP32-S3 with an INMP441 mic to stream audio to UDP port 5000.
+
+See [`deploy/README.md`](deploy/README.md) for the full reference.
+
 ## How it works (end to end)
 
 ```
